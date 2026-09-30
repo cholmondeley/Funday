@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fun Day Spinner</title>
+<style>
+  :root {
+    --bg1:#2b1055; --bg2:#7597de; --card:#ffffffee; --ink:#2a2140; --mute:#7a7290;
+    --mommy:#ff5fa2; --daddy:#3aa0ff; --gold:#ffc93c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; min-height:100vh; font-family: ui-rounded, "Avenir Next", system-ui, sans-serif;
+    color:var(--ink); background: linear-gradient(160deg,var(--bg1),#b24592 55%,#f15f79);
+    display:flex; flex-direction:column; align-items:center; padding:16px 16px 40px;
+  }
+  h1 { color:#fff; margin:6px 0 2px; font-size:clamp(26px,6vw,40px); text-shadow:0 2px 12px #0006; }
+  .sub { color:#ffffffcc; margin:0 0 12px; font-size:14px; }
+  .sub b { color:var(--gold); }
+  .wheelwrap { position:relative; width:min(88vw,440px); aspect-ratio:1; margin:6px 0 14px; }
+  canvas { width:100%; height:100%; display:block; filter:drop-shadow(0 10px 24px #0007); }
+  .pointer {
+    position:absolute; top:-8px; left:50%; transform:translateX(-50%); z-index:2;
+    width:0; height:0; border-left:16px solid transparent; border-right:16px solid transparent;
+    border-top:32px solid #fff; filter:drop-shadow(0 3px 4px #0008);
+  }
+  .hub {
+    position:absolute; inset:0; margin:auto; width:16%; height:16%; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#fff,#ffd86b 60%,#e0a100); box-shadow:0 2px 10px #0006;
+    display:grid; place-items:center; font-size:clamp(16px,4vw,26px);
+  }
+  .spinbtns { display:flex; gap:14px; width:min(92vw,440px); }
+  .spinbtns button {
+    flex:1; border:0; border-radius:18px; padding:16px 8px; font-size:18px; font-weight:800; color:#fff;
+    cursor:pointer; box-shadow:0 6px 0 #0004, 0 10px 20px #0004; transition:transform .08s;
+  }
+  .spinbtns button:active:not(:disabled) { transform:translateY(4px); box-shadow:0 2px 0 #0004; }
+  .spinbtns button:disabled { filter:grayscale(.8) opacity(.55); cursor:not-allowed; }
+  #spinM { background:var(--mommy); } #spinD { background:var(--daddy); }
+  .spinbtns small { display:block; font-weight:600; font-size:12px; opacity:.9; }
+  .card {
+    background:var(--card); border-radius:20px; padding:16px 18px; width:min(92vw,440px);
+    margin-top:16px; box-shadow:0 8px 30px #0004;
+  }
+  .card h2 { margin:0 0 10px; font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--mute); }
+  .pick { padding:10px 0; border-top:1px dashed #0002; }
+  .pick:first-of-type { border-top:0; }
+  .pick .who { font-size:12px; font-weight:800; }
+  .pick .who.M { color:var(--mommy);} .pick .who.D { color:var(--daddy);}
+  .pick .what { font-size:20px; font-weight:800; margin:2px 0 8px; }
+  .vetos { display:flex; gap:8px; flex-wrap:wrap; }
+  .vetos button, .ghost {
+    border:2px solid; background:#fff; border-radius:999px; padding:6px 12px; font-weight:700; font-size:13px; cursor:pointer;
+  }
+  .vetos .vm { color:var(--mommy); border-color:var(--mommy);} .vetos .vd { color:var(--daddy); border-color:var(--daddy);}
+  .vetos button:disabled { opacity:.35; cursor:not-allowed; }
+  .meter { display:flex; justify-content:space-between; gap:10px; }
+  .meter div { flex:1; text-align:center; border-radius:14px; padding:8px; background:#f3f0fa; }
+  .meter b { font-size:22px; } .meter .M b{color:var(--mommy);} .meter .D b{color:var(--daddy);}
+  .empty { color:var(--mute); font-size:14px; }
+  .status { color:#fffc; font-size:12px; margin-top:14px; text-align:center; max-width:440px; }
+  /* reveal overlay */
+  #reveal {
+    position:fixed; inset:0; background:#140a2acc; display:none; place-items:center; z-index:10; padding:20px;
+  }
+  #reveal.on { display:grid; }
+  #reveal .box {
+    background:#fff; border-radius:28px; padding:28px 24px; max-width:420px; width:100%; text-align:center;
+    animation:pop .5s cubic-bezier(.2,1.6,.4,1); box-shadow:0 0 0 6px var(--gold), 0 20px 60px #000a;
+  }
+  #reveal .by { font-weight:800; font-size:14px; letter-spacing:.1em; text-transform:uppercase; }
+  #reveal .res { font-size:clamp(24px,6.5vw,34px); font-weight:900; margin:12px 0 18px; line-height:1.15; }
+  #reveal .ok { background:var(--ink); color:#fff; border:0; border-radius:14px; padding:12px 28px; font-size:16px; font-weight:800; cursor:pointer; }
+  @keyframes pop { from { transform:scale(.4); opacity:0; } to { transform:scale(1); opacity:1; } }
+  .confetti { position:fixed; top:-10px; width:10px; height:14px; z-index:11; pointer-events:none; animation:fall linear forwards; }
+  @keyframes fall { to { transform:translateY(110vh) rotate(720deg); } }
+</style>
+</head>
+<body>
+<h1>🎡 Fun Day Spinner</h1>
+<p class="sub" id="dateline"></p>
+
+<div class="wheelwrap">
+  <div class="pointer"></div>
+  <canvas id="wheel" width="880" height="880"></canvas>
+  <div class="hub">✨</div>
+</div>
+
+<div class="spinbtns">
+  <button id="spinM">Mommy spins<small id="mNote"></small></button>
+  <button id="spinD">Daddy spins<small id="dNote"></small></button>
+</div>
+
+<div class="card">
+  <h2>Today's picks</h2>
+  <div id="picks"><div class="empty">Nothing spun yet today.</div></div>
+</div>
+
+<div class="card">
+  <h2 id="vetoTitle">Vetos left this month</h2>
+  <div class="meter">
+    <div class="M">Mommy<br><b id="vmLeft">2</b> / 2</div>
+    <div class="D">Daddy<br><b id="vdLeft">2</b> / 2</div>
+  </div>
+</div>
+
+<div class="status" id="status"></div>
+
+<div id="reveal"><div class="box">
+  <div class="by" id="revBy"></div>
+  <div class="res" id="revRes"></div>
+  <button class="ok" id="revOk">Yay!</button>
+</div></div>
+
+<script>
+// ---------- CONFIG ----------
+const SHEET_ID = '16Tlx8GmPZudmWosX8oPNcB9F1r2KUdum46-VFTTKBiw';
+// Paste the Apps Script web-app URL here to share vetos/spins between your two phones.
+// Leave empty and tracking is stored only in this browser.
+const SYNC_URL = '';
+const VETOS_PER_MONTH = 2;
+const NAMES = { M:'Mommy', D:'Daddy' };
+// ----------------------------
+
+const $ = id => document.getElementById(id);
+const LS = { get(k,d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d; }catch{ return d; } },
+             set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} } };
+
+// Date (override for testing with ?date=2026-10-04)
+const qDate = new URLSearchParams(location.search).get('date');
+function todayStr(){
+  if (qDate) return qDate;
+  const d = new Date(); const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+const isSunday = () => new Date(todayStr()+'T12:00:00').getDay() === 0;
+
+// ---------- Sheet items ----------
+let items = LS.get('items', []);   // [{name, w, sundayOnly}]
+function parseCSV(text){
+  const rows=[]; let row=[], cell='', q=false;
+  for (let i=0;i<text.length;i++){
+    const c=text[i];
+    if (q){ if (c==='"'){ if (text[i+1]==='"'){cell+='"';i++;} else q=false; } else cell+=c; }
+    else if (c==='"') q=true;
+    else if (c===','){ row.push(cell); cell=''; }
+    else if (c==='\n'){ row.push(cell); rows.push(row); row=[]; cell=''; }
+    else if (c!=='\r') cell+=c;
+  }
+  if (cell||row.length){ row.push(cell); rows.push(row); }
+  return rows;
+}
+async function loadItems(){
+  try{
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&range=A2:C100&_=${Date.now()}`;
+    const r = await fetch(url); if(!r.ok) throw new Error(r.status);
+    const rows = parseCSV(await r.text());
+    const fresh = rows.map(r=>({ name:(r[0]||'').trim(), w:parseFloat(r[2]) }))
+      .filter(x=>x.name && isFinite(x.w) && x.w>0)
+      .map(x=>({ ...x, sundayOnly:/only on sundays?/i.test(x.name) }));
+    if (!fresh.length) throw new Error('no rows');
+    items = fresh; LS.set('items', items);
+    setStatus(`${items.length} options loaded from the sheet`);
+  }catch(e){
+    setStatus(items.length ? 'Sheet unreachable, using last saved list' : 'Could not load the sheet');
+  }
+}
+const cleanName = n => n.replace(/\s*\((only on sundays?)\)\s*/i,'').trim();
+function pool(){ return items.filter(i => isSunday() || !i.sundayOnly); }
+function sample(){
+  const p = pool(); const total = p.reduce((s,i)=>s+i.w,0);
+  let r = Math.random()*total;
+  for (const i of p){ if ((r-=i.w) < 0) return i; }
+  return p[p.length-1];
+}
+
+// ---------- Tracking events ----------
+// {id, ts, date, type:'spin'|'veto', player:'M'|'D', spinId, item}
+// spin: player = spinner. veto: player = the vetoer, spinId = the spin voided.
+let events = LS.get('events', []);
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const pl = v => /^m/i.test(String(v)) ? 'M' : 'D';
+function merge(list){
+  const seen = new Set(events.map(e=>e.id));
+  for (const e of list){
+    if (!e.id || seen.has(String(e.id))) continue;
+    events.push({ id:String(e.id), ts:e.ts, date:String(e.date).replace(/^'/,'').slice(0,10),
+      type:e.type, player:pl(e.player), spinId:e.spinId||'', item:e.item||'' });
+  }
+  LS.set('events', events);
+}
+async function pull(){
+  if (!SYNC_URL) return;
+  try{ const r = await fetch(SYNC_URL); merge(await r.json()); setStatus('Synced with the Tracking tab'); render(); }
+  catch{ setStatus('Offline: changes will sync when the tracker is reachable'); }
+}
+async function push(e){
+  events.push(e); LS.set('events', events); render();
+  if (!SYNC_URL) return;
+  try{ await fetch(SYNC_URL,{ method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
+        body:JSON.stringify({ ...e, player:NAMES[e.player] }) }); }
+  catch{ setStatus('Could not reach the tracker; saved on this device only'); }
+}
+const voided = id => events.some(e=>e.type==='veto' && e.spinId===id);
+const activeSpin = p => events.find(e=>e.type==='spin' && e.date===todayStr() && e.player===p && !voided(e.id));
+const vetosUsed = p => events.filter(e=>e.type==='veto' && e.player===p && e.date.slice(0,7)===todayStr().slice(0,7)).length;
+
+// ---------- Wheel (decorative) ----------
+const cv = $('wheel'), ctx = cv.getContext('2d');
+const SL = 20, COLORS = ['#ff5fa2','#ffc93c','#3aa0ff','#6ee7b7','#a78bfa','#ff8a4c','#4cd1c5','#f472b6'];
+const ICONS = ['🎬','🍜','🛍️','💃','🎳','🚶','🍰','💆','🎁','🍕','🎲','🌷','🏸','👟','☕','🎈','🍳','🌙','🎤','⭐'];
+let rot = 0;
+function draw(){
+  const W = cv.width, R = W/2-14; ctx.clearRect(0,0,W,W); ctx.save(); ctx.translate(W/2,W/2);
+  ctx.beginPath(); ctx.arc(0,0,R+12,0,7); ctx.fillStyle='#fff'; ctx.fill();
+  ctx.rotate(rot);
+  for (let i=0;i<SL;i++){
+    const a0=i*2*Math.PI/SL, a1=(i+1)*2*Math.PI/SL;
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,R,a0,a1); ctx.closePath();
+    ctx.fillStyle=COLORS[i%COLORS.length]; ctx.fill();
+    ctx.strokeStyle='#ffffffaa'; ctx.lineWidth=3; ctx.stroke();
+    ctx.save(); ctx.rotate((a0+a1)/2); ctx.translate(R*0.68,0); ctx.rotate(Math.PI/2);
+    ctx.font=`${W*0.07}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(ICONS[i%ICONS.length],0,0);
+    ctx.restore();
+  }
+  for (let i=0;i<SL;i++){ // rim lights
+    const a=i*2*Math.PI/SL; ctx.beginPath(); ctx.arc(Math.cos(a)*(R+4),Math.sin(a)*(R+4),5,0,7);
+    ctx.fillStyle='#ffc93c'; ctx.fill();
+  }
+  ctx.restore();
+}
+let spinning = false;
+function animateSpin(){
+  return new Promise(res=>{
+    const start=rot, delta = (6+Math.random()*3)*2*Math.PI + Math.random()*2*Math.PI, dur=5200, t0=performance.now();
+    (function step(t){
+      const p=Math.min(1,(t-t0)/dur), e=1-Math.pow(1-p,4);
+      rot = start+delta*e; draw();
+      p<1 ? requestAnimationFrame(step) : res();
+    })(t0);
+  });
+}
+
+// ---------- Actions ----------
+async function doSpin(p){
+  if (spinning || activeSpin(p) || !pool().length) return;
+  spinning = true; render();
+  const pick = sample();            // sampled up front from the sheet weights
+  await animateSpin();
+  spinning = false;
+  await push({ id:uid(), ts:new Date().toISOString(), date:todayStr(), type:'spin', player:p, spinId:'', item:pick.name });
+  reveal(p, cleanName(pick.name));
+}
+function doVeto(vetoer, spin){
+  if (vetosUsed(vetoer) >= VETOS_PER_MONTH || !spin) return;
+  if (!confirm(`${NAMES[vetoer]} vetoes "${cleanName(spin.item)}"? (${VETOS_PER_MONTH-vetosUsed(vetoer)} left this month) ${NAMES[spin.player]} gets to spin again.`)) return;
+  push({ id:uid(), ts:new Date().toISOString(), date:todayStr(), type:'veto', player:vetoer, spinId:spin.id, item:spin.item });
+}
+
+// ---------- UI ----------
+function setStatus(t){ $('status').textContent = t + (SYNC_URL ? '' : ' · tracking stored on this device only'); }
+function render(){
+  const sun = isSunday();
+  $('dateline').innerHTML = new Date(todayStr()+'T12:00:00').toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})
+    + (sun ? ' · <b>Family day, Sunday specials are in!</b>' : '');
+  for (const p of ['M','D']){
+    const has = !!activeSpin(p);
+    $(p==='M'?'spinM':'spinD').disabled = spinning || has || !pool().length;
+    $(p==='M'?'mNote':'dNote').textContent = has ? 'already spun today' : '1 spin today';
+    $(p==='M'?'vmLeft':'vdLeft').textContent = Math.max(0, VETOS_PER_MONTH - vetosUsed(p));
+  }
+  $('vetoTitle').textContent = 'Vetos left in ' + new Date(todayStr()+'T12:00:00').toLocaleDateString(undefined,{month:'long'});
+  const box = $('picks'); box.innerHTML='';
+  const spins = ['M','D'].map(activeSpin).filter(Boolean);
+  if (!spins.length) box.innerHTML = '<div class="empty">Nothing spun yet today.</div>';
+  for (const s of spins){
+    const d = document.createElement('div'); d.className='pick';
+    d.innerHTML = `<div class="who ${s.player}">${NAMES[s.player]}'s spin</div><div class="what"></div><div class="vetos"></div>`;
+    d.querySelector('.what').textContent = cleanName(s.item);
+    const v = d.querySelector('.vetos');
+    for (const p of ['M','D']){
+      const b = document.createElement('button'); b.className = p==='M'?'vm':'vd';
+      b.textContent = `${NAMES[p]} veto`; b.disabled = vetosUsed(p) >= VETOS_PER_MONTH;
+      b.onclick = () => doVeto(p, s); v.appendChild(b);
+    }
+    box.appendChild(d);
+  }
+}
+function reveal(p, text){
+  $('revBy').textContent = `${NAMES[p]}'s spin landed on`; $('revBy').style.color = p==='M'?'var(--mommy)':'var(--daddy)';
+  $('revRes').textContent = text; $('reveal').classList.add('on'); confetti();
+}
+$('revOk').onclick = () => $('reveal').classList.remove('on');
+function confetti(){
+  for (let i=0;i<70;i++){
+    const c=document.createElement('div'); c.className='confetti';
+    c.style.left=Math.random()*100+'vw'; c.style.background=COLORS[i%COLORS.length];
+    c.style.animationDuration=(2+Math.random()*2)+'s'; c.style.animationDelay=Math.random()*.5+'s';
+    document.body.appendChild(c); setTimeout(()=>c.remove(),4800);
+  }
+}
+$('spinM').onclick = () => doSpin('M');
+$('spinD').onclick = () => doSpin('D');
+
+draw(); render();
+loadItems().then(render); pull();
+setInterval(pull, 20000);
+</script>
+</body>
+</html>
