@@ -209,8 +209,23 @@ const vetosUsed = p => events.filter(e=>e.type==='veto' && e.player===p && e.dat
 
 // ---------- Wheel (decorative) ----------
 const cv = $('wheel'), ctx = cv.getContext('2d');
-const SL = 20, COLORS = ['#ff5fa2','#ffc93c','#3aa0ff','#6ee7b7','#a78bfa','#ff8a4c','#4cd1c5','#f472b6'];
-const ICONS = ['🎬','🍜','🛍️','💃','🎳','🚶','🍰','💆','🎁','🍕','🎲','🌷','🏸','👟','☕','🎈','🍳','🌙','🎤','⭐'];
+const COLORS = ['#ff5fa2','#ffc93c','#3aa0ff','#6ee7b7','#a78bfa','#ff8a4c','#4cd1c5','#f472b6'];
+// One slice per category. An option lands on the slice whose picture matches it; anything
+// unrecognised (including new rows added to the sheet) lands on the 🎁 "surprise" slice.
+// Order matters: the first matching rule wins.
+const CATS = [
+  ['⛸️',/skat/i], ['👪',/family day/i], ['👟',/shoe/i], ['👗',/dress/i], ['🧸',/toy/i],
+  ['🛍️',/shopping/i], ['🍳',/cook|recipe|bake/i], ['🍽️',/restaurant/i], ['🏃',/walk|jog/i],
+  ['🏋️',/workout|gym/i], ['🎬',/movie/i], ['🎳',/bowl/i], ['🎱',/billiard/i],
+  ['🏸',/pickleball|badminton/i], ['💃',/dance/i], ['🥋',/karate/i], ['💆',/massage|nails/i],
+  ['🌸',/flower/i], ['🗣️',/language/i], ['🎲',/truth or dare|random dates/i], ['🔥',/boom/i],
+  ['💗',/yes honey|balcony/i], ['👑',/whatever he wants/i], ['🎁',null],
+];
+const SL = CATS.length, ICONS = CATS.map(c=>c[0]);
+function sliceFor(name){
+  const i = CATS.findIndex(c => c[1] && c[1].test(name));
+  return i < 0 ? SL-1 : i;
+}
 let rot = 0;
 function draw(){
   const W = cv.width, R = W/2-14; ctx.clearRect(0,0,W,W); ctx.save(); ctx.translate(W/2,W/2);
@@ -232,9 +247,12 @@ function draw(){
 }
 let spinning = false;
 const SPIN_MS = 6000;
-function animateSpin(){
+function animateSpin(sliceIdx){
   return new Promise(res=>{
-    rot += (5+Math.random()*3)*2*Math.PI + Math.random()*2*Math.PI;
+    const th = 2*Math.PI/SL, TAU = 2*Math.PI, mod = x => ((x%TAU)+TAU)%TAU;
+    // pointer is at the top (-90deg); rotate so the target slice centre (plus a little jitter) sits under it
+    const want = mod(-Math.PI/2 - (sliceIdx+0.5)*th + (Math.random()-0.5)*th*0.6);
+    rot += (5+Math.floor(Math.random()*3))*TAU + mod(want - rot);
     cv.style.transition = `transform ${SPIN_MS}ms cubic-bezier(.15,.6,.08,1)`;
     cv.getBoundingClientRect();               // commit the starting angle before changing it
     cv.style.transform = `rotate(${rot}rad)`;
@@ -247,7 +265,7 @@ async function doSpin(p){
   if (spinning || activeSpin(p) || !pool().length) return;
   spinning = true; render();
   const pick = sample();            // sampled up front from the sheet weights
-  await animateSpin();
+  await animateSpin(sliceFor(pick.name));
   spinning = false;
   await push({ id:uid(), ts:new Date().toISOString(), date:todayStr(), type:'spin', player:p, spinId:'', item:pick.name });
   reveal(p, cleanName(pick.name));
